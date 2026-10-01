@@ -1,0 +1,132 @@
+<title>Huddle Area Display</title>
+<style>
+  :root{
+    --bg:#000;
+    --accent:#ff8a3d;
+    --text-dim: rgba(255,255,255,0.55);
+    --pill-bg: rgba(255,255,255,0.06);
+  }
+  html, body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    overflow:hidden;
+    font-family:-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .stage{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg);
+  }
+  video{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    background:var(--bg);
+  }
+  .status{
+    position:fixed;
+    right:max(16px, env(safe-area-inset-right, 0px));
+    bottom:max(16px, env(safe-area-inset-bottom, 0px));
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 14px;
+    border-radius:999px;
+    background:var(--pill-bg);
+    backdrop-filter:blur(6px);
+    color:var(--text-dim);
+    font-size:13px;
+    letter-spacing:.02em;
+    opacity:0;
+    transition:opacity .4s ease;
+    pointer-events:none;
+  }
+  .status.show{ opacity:1; }
+  .dot{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    animation:pulse 1.2s ease-in-out infinite;
+    flex:none;
+  }
+  @keyframes pulse{
+    0%, 100%{ transform:scale(1); opacity:1; }
+    50%{ transform:scale(1.4); opacity:.6; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .dot{ animation:none; }
+  }
+</style>
+
+<div class="stage">
+  <video id="loop" src="video.mp4" muted autoplay loop playsinline preload="auto" disablepictureinpicture disableremoteplayback></video>
+</div>
+<div class="status" id="status">
+  <span class="dot"></span>
+  <span id="statusText">Loading</span>
+</div>
+
+<script>
+(function(){
+  var video = document.getElementById('loop');
+  var status = document.getElementById('status');
+  var statusText = document.getElementById('statusText');
+
+  function showStatus(text){
+    statusText.textContent = text;
+    status.classList.add('show');
+  }
+  function hideStatus(){
+    status.classList.remove('show');
+  }
+
+  function attemptPlay(){
+    try{
+      var p = video.play();
+      if(p && typeof p.catch === 'function'){
+        p.catch(function(){
+          showStatus('Tap to start');
+        });
+      }
+    }catch(e){
+      showStatus('Tap to start');
+    }
+  }
+
+  video.addEventListener('playing', hideStatus);
+  video.addEventListener('waiting', function(){ showStatus('Buffering'); });
+  video.addEventListener('error', function(){
+    showStatus('Reconnecting');
+    setTimeout(function(){
+      video.load();
+      attemptPlay();
+    }, 3000);
+  });
+
+  // The loop attribute should handle restart on its own, but some TV/kiosk
+  // browsers ignore it under certain conditions, so restart manually too.
+  video.addEventListener('ended', function(){
+    video.currentTime = 0;
+    attemptPlay();
+  });
+
+  document.addEventListener('click', attemptPlay);
+  document.addEventListener('keydown', attemptPlay);
+
+  // Watchdog: if playback silently stalls (e.g. after a focus change on the
+  // TV), nudge it back into playing rather than leaving a frozen frame up.
+  setInterval(function(){
+    if(video.paused && !video.ended && video.readyState >= 2){
+      attemptPlay();
+    }
+  }, 5000);
+
+  attemptPlay();
+})();
+</script>
